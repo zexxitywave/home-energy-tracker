@@ -12,11 +12,11 @@ import java.util.List;
 public class OpenApiConfig {
 
     @Bean
-    public OpenAPI usageServiceApiDocs() {
+    public OpenAPI apiGatewayOpenApi() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("Usage Service API")
-                        .description("Usage service API for Home Energy Tracker Project")
+                        .title("Home Energy Tracker API")
+                        .description("API Gateway for Home Energy Tracker Project")
                         .version("1.0.0"))
                 .servers(List.of(
                         new Server().url("http://localhost:9000")

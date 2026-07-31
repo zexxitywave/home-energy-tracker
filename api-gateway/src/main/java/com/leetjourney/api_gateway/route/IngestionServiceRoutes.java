@@ -23,7 +23,7 @@ public class IngestionServiceRoutes {
     public RouterFunction<ServerResponse> ingestionRoute() {
         return route("ingestion-service")
                 .route(RequestPredicates.path("/api/v1/ingestion/**"), http())
-                .before(uri("http://ingestion-service:8082"))
+                .before(uri("http://localhost:8082"))
                 .filter(CircuitBreakerFilterFunctions.circuitBreaker(
                         "ingestionServiceCircuitBreaker",
                         URI.create("forward:/ingestionFallbackRoute")
@@ -44,7 +44,7 @@ public class IngestionServiceRoutes {
     public RouterFunction<ServerResponse> ingestionServiceApiDocs() {
         return GatewayRouterFunctions.route("ingestion-service-api-docs")
                 .route(RequestPredicates.path("/docs/ingestion-service/v3/api-docs"), http())
-                .before(uri("http://ingestion-service:8082"))
+                .before(uri("http://localhost:8082"))
                 .filter(setPath("/v3/api-docs"))
                 .build();
     }

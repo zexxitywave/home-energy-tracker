@@ -23,7 +23,7 @@ public class AlertServiceRoutes {
     public RouterFunction<ServerResponse> alertRoute() {
         return route("alert-service")
                 .route(RequestPredicates.path("/api/v1/alert/**"), http())
-                .before(uri("http://alert-service:8084"))
+                .before(uri("http://localhost:8084"))
                 .filter(CircuitBreakerFilterFunctions.circuitBreaker(
                         "alertServiceCircuitBreaker",
                         URI.create("forward:/alertFallbackRoute")
@@ -44,7 +44,7 @@ public class AlertServiceRoutes {
     public RouterFunction<ServerResponse> alertServiceApiDocs() {
         return GatewayRouterFunctions.route("alert-service-api-docs")
                 .route(RequestPredicates.path("/docs/alert-service/v3/api-docs"), http())
-                .before(uri("http://alert-service:8084"))
+                .before(uri("http://localhost:8084"))
                 .filter(setPath("/v3/api-docs"))
                 .build();
     }

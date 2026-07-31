@@ -34,7 +34,7 @@ public class EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true);
 
             helper.setTo(to);
-            helper.setFrom("invydexter@gmail.com");
+            helper.setFrom("no-reply@zexxity.online");
             helper.setSubject(subject);
 
             String htmlBody = """

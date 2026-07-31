@@ -23,7 +23,7 @@ public class UsageServiceRoutes {
     public RouterFunction<ServerResponse> usageRoute() {
         return route("usage-service")
                 .route(RequestPredicates.path("/api/v1/usage/**"), http())
-                .before(uri("http://usage-service:8083"))
+                .before(uri("http://localhost:8083"))
                 .filter(CircuitBreakerFilterFunctions.circuitBreaker(
                         "usageServiceCircuitBreaker",
                         URI.create("forward:/usageFallbackRoute")
@@ -44,7 +44,7 @@ public class UsageServiceRoutes {
     public RouterFunction<ServerResponse> usageServiceApiDocs() {
         return GatewayRouterFunctions.route("usage-service-api-docs")
                 .route(RequestPredicates.path("/docs/usage-service/v3/api-docs"), http())
-                .before(uri("http://usage-service:8083"))
+                .before(uri("http://localhost:8083"))
                 .filter(setPath("/v3/api-docs"))
                 .build();
     }

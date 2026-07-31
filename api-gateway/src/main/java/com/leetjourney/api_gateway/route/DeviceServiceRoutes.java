@@ -23,7 +23,7 @@ public class DeviceServiceRoutes {
     public RouterFunction<ServerResponse> deviceRoute() {
         return route("device-service")
                 .route(RequestPredicates.path("/api/v1/device/**"), http())
-                .before(uri("http://device-service:8081"))
+                .before(uri("http://localhost:8081"))
                 .filter(CircuitBreakerFilterFunctions.circuitBreaker(
                         "deviceServiceCircuitBreaker",
                         URI.create("forward:/fallbackRoute")))
@@ -43,7 +43,7 @@ public class DeviceServiceRoutes {
     public RouterFunction<ServerResponse> deviceServiceApiDocs() {
         return GatewayRouterFunctions.route("device-service-api-docs")
                 .route(RequestPredicates.path("/docs/device-service/v3/api-docs"), http())
-                .before(uri("http://device-service:8081"))
+                .before(uri("http://localhost:8081"))
                 .filter(setPath("/v3/api-docs"))
                 .build();
     }
