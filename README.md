@@ -8,6 +8,8 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 [![Prometheus](https://img.shields.io/badge/Prometheus-Alerting-E6522C.svg?logo=prometheus&logoColor=white)](https://prometheus.io/)
 [![Grafana](https://img.shields.io/badge/Grafana-Dashboards-F46800.svg?logo=grafana&logoColor=white)](https://grafana.com/)
+[![CI](https://github.com/zexxitywave/home-energy-tracker/actions/workflows/cicd.yml/badge.svg)](https://github.com/zexxitywave/home-energy-tracker/actions/workflows/cicd.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A **production-grade microservices system** for real-time household energy monitoring. Ingests device readings at **~191 msg/s**, processes them through a **3-stage Kafka pipeline**, persists to **InfluxDB**, classifies **WARNING/CRITICAL** alerts via 1-hour rolling aggregations, and delivers billing projections through **async email** — all observable via **Prometheus + Grafana** with p50 < 1ms, p95 < 6ms end-to-end latency.
 
@@ -437,6 +439,22 @@ With 5 partitions and 5 consumer threads, round-robin ensures even distribution 
 - Multi-tenant support — per-household isolation and billing
 - WebSocket push — real-time alert delivery without polling
 - Centralized config — Spring Cloud Config or Vault for secrets
+
+---
+
+*Built with Spring Boot 4, Java 21, and the full modern microservices stack.*
+
+---
+
+## Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
