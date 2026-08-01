@@ -22,6 +22,17 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      - name: Make mvnw executables
+        run: |
+          chmod +x user-service/mvnw
+          chmod +x device-service/mvnw
+          chmod +x ingestion-service/mvnw
+          chmod +x usage-service/mvnw
+          chmod +x alert-service/mvnw
+          chmod +x complaint-service/mvnw
+          chmod +x api-gateway/mvnw
+          chmod +x insight-service/mvnw
+
       - name: Build user-service
         run: cd user-service && ./mvnw -q package -DskipTests
 
