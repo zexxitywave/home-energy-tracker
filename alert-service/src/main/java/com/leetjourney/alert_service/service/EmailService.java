@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -22,6 +23,7 @@ public class EmailService {
         this.alertRepository = alertRepository;
     }
 
+    @Async("emailTaskExecutor")
     public void sendEmail(String to,
                           String subject,
                           String body,
@@ -140,7 +142,7 @@ public class EmailService {
                     .userId(userId)
                     .build();
 
-            alertRepository.saveAndFlush(alertSent);
+            alertRepository.save(alertSent);
 
             log.info("Professional billing email sent successfully.");
 
@@ -153,7 +155,7 @@ public class EmailService {
                     .userId(userId)
                     .build();
 
-            alertRepository.saveAndFlush(alertSent);
+            alertRepository.save(alertSent);
 
         } catch (Exception e) {
             log.error("Unexpected error", e);

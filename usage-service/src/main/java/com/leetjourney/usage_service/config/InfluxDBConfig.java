@@ -2,9 +2,13 @@ package com.leetjourney.usage_service.config;
 
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.InfluxDBClientFactory;
+import com.influxdb.client.InfluxDBClientOptions;
+import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.concurrent.TimeUnit;
 
 @Configuration
 public class InfluxDBConfig {
@@ -18,12 +22,20 @@ public class InfluxDBConfig {
     @Value("${influx.org}")
     private String influxOrg;
 
-
-
     @Bean
     public InfluxDBClient influxDBClient() {
-        return InfluxDBClientFactory.create(influxUrl, influxToken.toCharArray(), influxOrg);
+        OkHttpClient.Builder okHttpClient = new OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)   // was default 10s — now 60s
+                .writeTimeout(30, TimeUnit.SECONDS);
+
+        InfluxDBClientOptions options = InfluxDBClientOptions.builder()
+                .url(influxUrl)
+                .authenticateToken(influxToken.toCharArray())
+                .org(influxOrg)
+                .okHttpClient(okHttpClient)
+                .build();
+
+        return InfluxDBClientFactory.create(options);
     }
-
-
 }

@@ -2,6 +2,8 @@ package com.leetjourney.usage_service.service;
 
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.QueryApi;
+import com.influxdb.client.WriteApi;
+import com.influxdb.client.WriteOptions;
 import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
 import com.influxdb.query.FluxRecord;
@@ -22,6 +24,8 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -34,6 +38,9 @@ public class UsageService {
     private final DeviceClient deviceClient;
     private final UserClient userClient;
     private final KafkaTemplate<String, AlertingEvent> kafkaTemplate;
+
+    // Non-blocking batched write API — buffers up to 1000 points or 1s, then flushes in background
+    private WriteApi writeApi;
 
     @Value("${influx.bucket}")
     private String influxBucket;
@@ -59,6 +66,29 @@ public class UsageService {
         this.kafkaTemplate = kafkaTemplate;
     }
 
+    @PostConstruct
+    public void init() {
+        // Batch: flush every 1 second OR when 1000 points accumulate — whichever comes first
+        // This means consumer thread returns instantly; InfluxDB writes happen in background
+        this.writeApi = influxDBClient.makeWriteApi(
+                WriteOptions.builder()
+                        .batchSize(1000)
+                        .flushInterval(1000)   // ms
+                        .bufferLimit(50000)    // max queued points before dropping
+                        .build()
+        );
+        log.info("InfluxDB non-blocking write API initialized (batch=1000, flush=1s)");
+    }
+
+    @PreDestroy
+    public void shutdown() {
+        if (writeApi != null) {
+            writeApi.flush();
+            writeApi.close();
+            log.info("InfluxDB write API flushed and closed");
+        }
+    }
+
     @KafkaListener(topics = "energy-usage", groupId = "usage-service")
     public void energyUsageEvent(EnergyUsageEvent energyUsageEvent) {
         Point point = Point.measurement("energy_usage")
@@ -66,10 +96,12 @@ public class UsageService {
                 .addField("energyConsumed", energyUsageEvent.energyConsumed())
                 .time(Instant.now(), WritePrecision.MS);
 
-        influxDBClient.getWriteApiBlocking().writePoint(influxBucket, influxOrg, point);
+        // Non-blocking: queues the point in memory, background thread batches to InfluxDB
+        // Consumer thread returns immediately — no waiting for InfluxDB network round-trip
+        writeApi.writePoint(influxBucket, influxOrg, point);
     }
 
-    @Scheduled(cron = "*/10 * * * * *")
+    @Scheduled(fixedRate = 5000)
     public void aggregateDeviceEnergyUsage() {
 
         Instant now = Instant.now();

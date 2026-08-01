@@ -1,10 +1,10 @@
 package com.todo.complaintservice.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -12,6 +12,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class S3ServiceImpl implements S3Service {
@@ -23,18 +24,16 @@ public class S3ServiceImpl implements S3Service {
 
     @Override
     public String uploadFile(MultipartFile file) {
-
         try {
             return uploadFile(
                     file.getOriginalFilename(),
                     file.getContentType(),
-                    file.getBytes()
+                    file.getBytes(),
+                    null,
+                    null
             );
-
         } catch (Exception e) {
-            throw new RuntimeException(
-                    "S3 upload failed: " + e.getMessage()
-            );
+            throw new RuntimeException("S3 upload failed: " + e.getMessage());
         }
     }
 
@@ -42,39 +41,42 @@ public class S3ServiceImpl implements S3Service {
     public String uploadFile(
             String originalFileName,
             String contentType,
-            byte[] bytes
+            byte[] bytes,
+            Long userId,
+            Long complaintId
     ) {
+        // S3 key format: users/{userId}/complaints/{complaintId}/{uuid}-{filename}
+        String prefix = (userId != null && complaintId != null)
+                ? "users/" + userId + "/complaints/" + complaintId + "/"
+                : "uncategorized/";
 
-        String fileName =
-                UUID.randomUUID() + "-" + originalFileName;
+        String fileName = prefix + UUID.randomUUID() + "-" + originalFileName;
+        long startTime = System.currentTimeMillis();
 
         try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(fileName)
+                    .contentType(contentType)
+                    .metadata(Map.of(
+                            "uploaded-by", "home-energy-tracker",
+                            "module", "complaint-service",
+                            "original-file-name", originalFileName,
+                            "user-id", userId != null ? String.valueOf(userId) : "unknown",
+                            "complaint-id", complaintId != null ? String.valueOf(complaintId) : "unknown"
+                    ))
+                    .build();
 
-            PutObjectRequest putObjectRequest =
-                    PutObjectRequest.builder()
-                            .bucket(bucketName)
-                            .key(fileName)
-                            .contentType(contentType)
-                            .metadata(
-                                    Map.of(
-                                            "uploaded-by", "home-energy-tracker",
-                                            "module", "complaint-service",
-                                            "original-file-name", originalFileName
-                                    )
-                            )
-                            .build();
+            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(bytes));
 
-            s3Client.putObject(
-                    putObjectRequest,
-                    RequestBody.fromBytes(bytes)
-            );
-
-            System.out.println("S3 upload success: " + fileName);
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("✅ S3 upload success | key: {} | size: {} bytes | userId: {} | complaintId: {} | duration: {}ms",
+                    fileName, bytes.length, userId, complaintId, duration);
 
             return fileName;
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("❌ S3 upload failed | file: {} | userId: {} | error: {}", fileName, userId, e.getMessage());
             return null;
         }
     }

@@ -9,6 +9,8 @@ public interface S3Service {
     String uploadFile(
             String fileName,
             String contentType,
-            byte[] bytes
+            byte[] bytes,
+            Long userId,
+            Long complaintId
     );
 }

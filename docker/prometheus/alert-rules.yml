@@ -1,0 +1,270 @@
+groups:
+
+  # ─────────────────────────────────────────────
+  # 1. SERVICE AVAILABILITY
+  # ─────────────────────────────────────────────
+  - name: service-availability
+    rules:
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 30s
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "SERVICE DOWN: {{ $labels.job }}"
+          description: "{{ $labels.job }} has been unreachable for over 30 seconds. Check if the process is running."
+
+      - alert: ServiceRestartDetected
+        expr: increase(process_uptime_seconds[2m]) < 0
+        for: 0s
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Service restarted: {{ $labels.application }}"
+          description: "{{ $labels.application }} appears to have restarted (uptime dropped)."
+
+  # ─────────────────────────────────────────────
+  # 2. HTTP TRAFFIC & ERRORS
+  # ─────────────────────────────────────────────
+  - name: http-errors
+    rules:
+
+      - alert: HighHttpErrorRate5xx
+        expr: |
+          sum by (application) (
+            rate(http_server_requests_seconds_count{status=~"5.."}[2m])
+          ) > 0.5
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "High 5xx rate on {{ $labels.application }}"
+          description: "{{ $labels.application }} is returning 5xx errors at {{ $value | printf \"%.2f\" }} req/s for over 1 minute."
+
+      - alert: ElevatedHttpErrorRate4xx
+        expr: |
+          sum by (application) (
+            rate(http_server_requests_seconds_count{status=~"4.."}[2m])
+          ) > 5
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Elevated 4xx rate on {{ $labels.application }}"
+          description: "{{ $labels.application }} is returning 4xx errors at {{ $value | printf \"%.2f\" }} req/s. May indicate bad client requests or auth issues."
+
+      - alert: HighP95Latency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (application, le) (
+              rate(http_server_requests_seconds_bucket[5m])
+            )
+          ) > 2
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "High P95 latency on {{ $labels.application }}"
+          description: "P95 response time on {{ $labels.application }} is {{ $value | printf \"%.3f\" }}s (threshold: 2s)."
+
+      - alert: CriticalP99Latency
+        expr: |
+          histogram_quantile(0.99,
+            sum by (application, le) (
+              rate(http_server_requests_seconds_bucket[5m])
+            )
+          ) > 5
+        for: 2m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Critical P99 latency on {{ $labels.application }}"
+          description: "P99 response time on {{ $labels.application }} is {{ $value | printf \"%.3f\" }}s. Users are experiencing severe slowness."
+
+      - alert: ZeroRequestRate
+        expr: |
+          sum by (application) (
+            rate(http_server_requests_seconds_count[5m])
+          ) == 0
+          and on (application) up == 1
+        for: 3m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "No traffic to {{ $labels.application }}"
+          description: "{{ $labels.application }} is UP but receiving zero HTTP requests for 3 minutes. Possible routing or load balancer issue."
+
+  # ─────────────────────────────────────────────
+  # 3. JVM MEMORY & GC
+  # ─────────────────────────────────────────────
+  - name: jvm-memory
+    rules:
+
+      - alert: HighJvmHeapUsage
+        expr: |
+          sum by (application) (jvm_memory_used_bytes{area="heap"})
+          /
+          sum by (application) (jvm_memory_max_bytes{area="heap"})
+          > 0.80
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "High heap usage on {{ $labels.application }}"
+          description: "{{ $labels.application }} heap is at {{ $value | printf \"%.1f\" }}% for over 2 minutes. Risk of OOM."
+
+      - alert: CriticalJvmHeapUsage
+        expr: |
+          sum by (application) (jvm_memory_used_bytes{area="heap"})
+          /
+          sum by (application) (jvm_memory_max_bytes{area="heap"})
+          > 0.92
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "CRITICAL heap usage on {{ $labels.application }}"
+          description: "{{ $labels.application }} heap is at {{ $value | printf \"%.1f\" }}%. OOM crash imminent. Immediate action required."
+
+      - alert: FrequentGCPauses
+        expr: |
+          rate(jvm_gc_pause_seconds_count[2m]) * 60 > 10
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Frequent GC on {{ $labels.application }}"
+          description: "{{ $labels.application }} is running {{ $value | printf \"%.0f\" }} GC cycles/min. Memory pressure is high."
+
+      - alert: LongGCPauseDuration
+        expr: |
+          rate(jvm_gc_pause_seconds_sum[2m]) > 0.3
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Long GC pauses on {{ $labels.application }}"
+          description: "{{ $labels.application }} is spending {{ $value | printf \"%.3f\" }}s/s in GC pauses. Application may be stalling."
+
+  # ─────────────────────────────────────────────
+  # 4. THREADS
+  # ─────────────────────────────────────────────
+  - name: jvm-threads
+    rules:
+
+      - alert: HighBlockedThreadCount
+        expr: |
+          jvm_threads_states_threads{state="blocked"} > 10
+        for: 1m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Blocked threads on {{ $labels.application }}"
+          description: "{{ $labels.application }} has {{ $value }} blocked threads. Possible deadlock or lock contention."
+
+      - alert: ThreadCountSpike
+        expr: |
+          jvm_threads_live_threads > 200
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "High thread count on {{ $labels.application }}"
+          description: "{{ $labels.application }} has {{ $value }} live threads. Check for thread leaks or unbounded executor pools."
+
+  # ─────────────────────────────────────────────
+  # 5. DATABASE CONNECTION POOL
+  # ─────────────────────────────────────────────
+  - name: hikaricp
+    rules:
+
+      - alert: HikariConnectionPoolExhausted
+        expr: hikaricp_connections_pending > 0
+        for: 30s
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "DB connection pool saturation on {{ $labels.application }}"
+          description: "{{ $labels.application }} has {{ $value }} threads waiting for a DB connection. Pool may be undersized."
+
+      - alert: HikariConnectionPoolCritical
+        expr: hikaricp_connections_pending > 5
+        for: 30s
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "CRITICAL DB pool on {{ $labels.application }}"
+          description: "{{ $labels.application }} has {{ $value }} threads blocked on DB connections. Requests are queueing up."
+
+      - alert: HighConnectionAcquisitionTime
+        expr: |
+          histogram_quantile(0.95,
+            sum by (application, le) (
+              rate(hikaricp_connections_acquire_seconds_bucket[5m])
+            )
+          ) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Slow DB connection acquisition on {{ $labels.application }}"
+          description: "P95 connection acquisition time is {{ $value | printf \"%.3f\" }}s on {{ $labels.application }}."
+
+  # ─────────────────────────────────────────────
+  # 6. INGESTION PIPELINE
+  # ─────────────────────────────────────────────
+  - name: ingestion-pipeline
+    rules:
+
+      - alert: IngestionStalled
+        expr: |
+          rate(ingestion_messages_success_total[3m]) == 0
+          and on() up{job="ingestion-service"} == 1
+        for: 3m
+        labels:
+          severity: critical
+          team: data
+        annotations:
+          summary: "Ingestion pipeline STALLED"
+          description: "ingestion-service is UP but has sent zero messages to Kafka for 3 minutes. Check Kafka broker connectivity."
+
+      - alert: IngestionFailureDetected
+        expr: rate(ingestion_messages_failed_total[1m]) > 0
+        for: 30s
+        labels:
+          severity: warning
+          team: data
+        annotations:
+          summary: "Ingestion messages failing"
+          description: "ingestion-service is failing to send messages at {{ $value | printf \"%.3f\" }} msg/s. Check Kafka logs."
+
+      - alert: IngestionHighErrorRatio
+        expr: |
+          rate(ingestion_messages_failed_total[5m])
+          /
+          (rate(ingestion_messages_success_total[5m]) + rate(ingestion_messages_failed_total[5m]))
+          > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          team: data
+        annotations:
+          summary: "High ingestion failure ratio"
+          description: "Over 5% of ingestion messages are failing (current: {{ $value | printf \"%.1f\" }}%). Data loss is occurring."
