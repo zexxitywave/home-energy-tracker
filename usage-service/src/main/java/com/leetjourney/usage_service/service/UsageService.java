@@ -17,6 +17,8 @@ import com.leetjourney.usage_service.dto.UsageDto;
 import com.leetjourney.usage_service.dto.UserDto;
 import com.leetjourney.usage_service.model.Device;
 import com.leetjourney.usage_service.model.DeviceEnergy;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -42,6 +44,13 @@ public class UsageService {
     // Non-blocking batched write API — buffers up to 1000 points or 1s, then flushes in background
     private WriteApi writeApi;
 
+    // Micrometer counters
+    private final Counter usageEventsConsumedCounter;
+    private final Counter usageInfluxWriteCounter;
+    private final Counter alertsProducedCounter;
+    private final Counter alertsProducedWarningCounter;
+    private final Counter alertsProducedCriticalCounter;
+
     @Value("${influx.bucket}")
     private String influxBucket;
 
@@ -58,12 +67,28 @@ public class UsageService {
             InfluxDBClient influxDBClient,
             DeviceClient deviceClient,
             UserClient userClient,
-            KafkaTemplate<String, AlertingEvent> kafkaTemplate
+            KafkaTemplate<String, AlertingEvent> kafkaTemplate,
+            MeterRegistry meterRegistry
     ) {
         this.influxDBClient = influxDBClient;
         this.deviceClient = deviceClient;
         this.userClient = userClient;
         this.kafkaTemplate = kafkaTemplate;
+        this.usageEventsConsumedCounter = Counter.builder("usage.events.consumed")
+                .description("Total energy usage events consumed from Kafka")
+                .register(meterRegistry);
+        this.usageInfluxWriteCounter = Counter.builder("usage.influx.writes")
+                .description("Total points written to InfluxDB")
+                .register(meterRegistry);
+        this.alertsProducedCounter = Counter.builder("usage.alerts.produced")
+                .description("Total alerts produced to energy-alerts topic")
+                .register(meterRegistry);
+        this.alertsProducedWarningCounter = Counter.builder("usage.alerts.warning")
+                .description("Total WARNING alerts produced")
+                .register(meterRegistry);
+        this.alertsProducedCriticalCounter = Counter.builder("usage.alerts.critical")
+                .description("Total CRITICAL alerts produced")
+                .register(meterRegistry);
     }
 
     @PostConstruct
@@ -99,6 +124,8 @@ public class UsageService {
         // Non-blocking: queues the point in memory, background thread batches to InfluxDB
         // Consumer thread returns immediately — no waiting for InfluxDB network round-trip
         writeApi.writePoint(influxBucket, influxOrg, point);
+        usageEventsConsumedCounter.increment();
+        usageInfluxWriteCounter.increment();
     }
 
     @Scheduled(fixedRate = 5000)
@@ -216,6 +243,13 @@ public class UsageService {
                         .build();
 
                 kafkaTemplate.send("energy-alerts", alertingEvent);
+
+                alertsProducedCounter.increment();
+                if ("CRITICAL".equals(alertLevel)) {
+                    alertsProducedCriticalCounter.increment();
+                } else {
+                    alertsProducedWarningCounter.increment();
+                }
 
                 log.info("Pricing alert sent for user {}", userId);
 

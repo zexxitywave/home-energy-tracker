@@ -1,6 +1,8 @@
 package com.leetjourney.alert_service.service;
 
 import com.leetjourney.kafka.event.AlertingEvent;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
@@ -10,15 +12,35 @@ import org.springframework.stereotype.Service;
 public class AlertService {
 
     private final EmailService emailService;
+    private final Counter alertsConsumedCounter;
+    private final Counter alertsWarningCounter;
+    private final Counter alertsCriticalCounter;
 
-    public AlertService(EmailService emailService) {
+    public AlertService(EmailService emailService, MeterRegistry meterRegistry) {
         this.emailService = emailService;
+        this.alertsConsumedCounter = Counter.builder("alert.messages.consumed")
+                .description("Total alert messages consumed from Kafka")
+                .register(meterRegistry);
+        this.alertsWarningCounter = Counter.builder("alert.messages.warning")
+                .description("Total WARNING level alerts consumed")
+                .register(meterRegistry);
+        this.alertsCriticalCounter = Counter.builder("alert.messages.critical")
+                .description("Total CRITICAL level alerts consumed")
+                .register(meterRegistry);
     }
 
     @KafkaListener(topics = "energy-alerts", groupId = "alert-service")
     public void energyUsageAlertEvent(AlertingEvent alertingEvent) {
 
         log.info("Received alert event: {}", alertingEvent);
+
+        alertsConsumedCounter.increment();
+
+        if ("CRITICAL".equalsIgnoreCase(alertingEvent.getAlertLevel())) {
+            alertsCriticalCounter.increment();
+        } else {
+            alertsWarningCounter.increment();
+        }
 
         String subject = "Energy Usage Alert for User " + alertingEvent.getUserId();
 

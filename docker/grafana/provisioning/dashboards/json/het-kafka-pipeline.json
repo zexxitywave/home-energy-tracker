@@ -427,6 +427,91 @@
     },
 
     {
+      "id": 20,
+      "title": "Usage Events Consumed",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 65 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "usage_events_consumed_total", "legendFormat": "consumed" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": null }] } } }
+    },
+
+    {
+      "id": 21,
+      "title": "InfluxDB Writes",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 65 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "usage_influx_writes_total", "legendFormat": "writes" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }] } } }
+    },
+
+    {
+      "id": 22,
+      "title": "Alerts Produced (WARNING)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 65 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "usage_alerts_warning_total", "legendFormat": "warning" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "yellow", "value": null }] } } }
+    },
+
+    {
+      "id": 23,
+      "title": "Alerts Produced (CRITICAL)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 65 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "usage_alerts_critical_total", "legendFormat": "critical" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } }
+    },
+
+    {
+      "id": 24,
+      "title": "Alert Msgs Consumed",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 65 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "alert_messages_consumed_total", "legendFormat": "consumed" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": null }] } } }
+    },
+
+    {
+      "id": 25,
+      "title": "WARNING vs CRITICAL Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 69 },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "rate(usage_alerts_warning_total[1m])", "legendFormat": "WARNING/s" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "rate(usage_alerts_critical_total[1m])", "legendFormat": "CRITICAL/s" }
+      ],
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2, "fillOpacity": 10 }, "unit": "short" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "WARNING/s" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "CRITICAL/s" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] } }
+    },
+
+    {
+      "id": 26,
+      "title": "Usage Events Consumed vs Alerts Produced",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 69 },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "rate(usage_events_consumed_total[1m])", "legendFormat": "events consumed/s" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "rate(usage_alerts_produced_total[1m])", "legendFormat": "alerts produced/s" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "rate(alert_messages_consumed_total[1m])", "legendFormat": "alerts consumed/s" }
+      ],
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2, "fillOpacity": 5, "lineInterpolation": "smooth" }, "unit": "short" }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] } }
+    }
+
+    {
       "id": 15,
       "title": "Alert Service Request Rate",
       "type": "timeseries",
