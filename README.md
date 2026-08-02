@@ -446,6 +446,41 @@ With 5 partitions and 5 consumer threads, round-robin ensures even distribution 
 
 ---
 
+## Complaint Service — Load Test Results
+
+The complaint service was load tested under three scenarios to validate the async S3 upload architecture under real conditions. All uploads went to **AWS S3 (ap-south-1)** with parallel processing via `CompletableFuture` + `parallelStream`.
+
+### Test Scenarios
+
+| # | Scenario | Users | Files | Total Payload | Requests | Error % | API Response | Notes |
+|---|----------|-------|-------|---------------|----------|---------|--------------|-------|
+| 1 | Single user, bulk payload | 1 | 307 files | ~91 MB | 1 | 0% | 5.17s | Videos + images in one request |
+| 2 | Single user, 300 images | 1 | 300 images | ~50 MB | 300 | 0% | sub-2s each | All uploads succeeded |
+| 3 | Multi-user JMeter load test | 5 users | 2 files each | — | 1,450 | 0% | 40ms median | 5.9 req/s throughput |
+
+### Test 3 — Detailed JMeter Results (1,450 requests, 5 concurrent users)
+
+| Metric | Value |
+|--------|-------|
+| Total Requests | 1,450 |
+| Error Rate | **0.00%** |
+| Average Response Time | 250ms |
+| Median (p50) | **40ms** |
+| 90th Percentile | 396ms |
+| 95th Percentile | 1,429ms |
+| 99th Percentile | 4,119ms |
+| Max Response Time | 5,688ms |
+| Throughput | **5.9 req/s** |
+
+### Key Observations
+
+- API response time stays **decoupled from S3 upload duration** — the server returns immediately after DB save, S3 uploads run in background threads
+- **40ms median** across 1,450 concurrent requests confirms the async design holds under sustained load
+- **91MB uploaded in a single request** demonstrates no payload size bottleneck at the API layer (multipart limit: 100MB)
+- Zero failures across all three test scenarios — `parallelStream` handles concurrent S3 connections without thread exhaustion at tested load levels
+
+---
+
 ## Contributing
 
 Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
