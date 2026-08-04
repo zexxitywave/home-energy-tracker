@@ -2,8 +2,6 @@ package com.leetjourney.usage_service.service;
 
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.QueryApi;
-import com.influxdb.client.WriteApi;
-import com.influxdb.client.WriteOptions;
 import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
 import com.influxdb.query.FluxRecord;
@@ -23,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -40,9 +39,6 @@ public class UsageService {
     private final DeviceClient deviceClient;
     private final UserClient userClient;
     private final KafkaTemplate<String, AlertingEvent> kafkaTemplate;
-
-    // Non-blocking batched write API — buffers up to 1000 points or 1s, then flushes in background
-    private WriteApi writeApi;
 
     // Micrometer counters
     private final Counter usageEventsConsumedCounter;
@@ -115,17 +111,28 @@ public class UsageService {
     }
 
     @KafkaListener(topics = "energy-usage", groupId = "usage-service")
-    public void energyUsageEvent(EnergyUsageEvent energyUsageEvent) {
+    public void energyUsageEvent(EnergyUsageEvent energyUsageEvent, Acknowledgment ack) {
         Point point = Point.measurement("energy_usage")
                 .addTag("deviceId", String.valueOf(energyUsageEvent.deviceId()))
                 .addField("energyConsumed", energyUsageEvent.energyConsumed())
                 .time(Instant.now(), WritePrecision.MS);
 
-        // Non-blocking: queues the point in memory, background thread batches to InfluxDB
-        // Consumer thread returns immediately — no waiting for InfluxDB network round-trip
-        writeApi.writePoint(influxBucket, influxOrg, point);
-        usageEventsConsumedCounter.increment();
-        usageInfluxWriteCounter.increment();
+        try {
+            // Synchronous write — waits for InfluxDB confirmation before acking
+            influxDBClient.getWriteApiBlocking().writePoint(influxBucket, influxOrg, point);
+
+            // Only acknowledge AFTER successful InfluxDB write
+            // If InfluxDB fails → no ack → Kafka keeps message → retried on next poll
+            ack.acknowledge();
+
+            usageEventsConsumedCounter.increment();
+            usageInfluxWriteCounter.increment();
+
+        } catch (Exception e) {
+            // No ack — Kafka will redeliver this message
+            log.error("InfluxDB write failed for deviceId={}, will retry: {}",
+                    energyUsageEvent.deviceId(), e.getMessage());
+        }
     }
 
     @Scheduled(fixedRate = 5000)
@@ -251,7 +258,8 @@ public class UsageService {
                     alertsProducedWarningCounter.increment();
                 }
 
-                log.info("Pricing alert sent for user {}", userId);
+                log.info("[{}] Alert sent for user {} — consumed: {}W, threshold: {}W, cost: ₹{}",
+                        alertLevel, userId, totalConsumption, threshold, String.format("%.2f", estimatedCost));
 
             } else {
                 log.info("User {} within threshold", userId);
