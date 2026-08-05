@@ -29,6 +29,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,6 +40,10 @@ public class UsageService {
     private final DeviceClient deviceClient;
     private final UserClient userClient;
     private final KafkaTemplate<String, AlertingEvent> kafkaTemplate;
+
+    // Cooldown map — tracks last alert time per user (1 hour cooldown)
+    private final Map<Long, Instant> lastAlertTime = new ConcurrentHashMap<>();
+    private static final long ALERT_COOLDOWN_SECONDS = 3600; // 1 hour
 
     // Micrometer counters
     private final Counter usageEventsConsumedCounter;
@@ -89,25 +94,12 @@ public class UsageService {
 
     @PostConstruct
     public void init() {
-        // Batch: flush every 1 second OR when 1000 points accumulate — whichever comes first
-        // This means consumer thread returns instantly; InfluxDB writes happen in background
-        this.writeApi = influxDBClient.makeWriteApi(
-                WriteOptions.builder()
-                        .batchSize(1000)
-                        .flushInterval(1000)   // ms
-                        .bufferLimit(50000)    // max queued points before dropping
-                        .build()
-        );
-        log.info("InfluxDB non-blocking write API initialized (batch=1000, flush=1s)");
+        log.info("UsageService initialized — synchronous InfluxDB writes with manual Kafka ack");
     }
 
     @PreDestroy
     public void shutdown() {
-        if (writeApi != null) {
-            writeApi.flush();
-            writeApi.close();
-            log.info("InfluxDB write API flushed and closed");
-        }
+        log.info("UsageService shutting down");
     }
 
     @KafkaListener(topics = "energy-usage", groupId = "usage-service")
@@ -224,6 +216,15 @@ public class UsageService {
 
             if (totalConsumption > threshold) {
 
+                // Cooldown check — only alert once per hour per user
+                Instant lastAlert = lastAlertTime.get(userId);
+                if (lastAlert != null &&
+                        Instant.now().isBefore(lastAlert.plusSeconds(ALERT_COOLDOWN_SECONDS))) {
+                    log.debug("User {} alert skipped — cooldown active (next alert after {})",
+                            userId, lastAlert.plusSeconds(ALERT_COOLDOWN_SECONDS));
+                    continue;
+                }
+
                 double totalKwh = totalConsumption / 1000.0;
                 double estimatedCost = totalKwh * electricityRate;
                 double projectedMonthlyCost = estimatedCost * billingDays;
@@ -250,6 +251,9 @@ public class UsageService {
                         .build();
 
                 kafkaTemplate.send("energy-alerts", alertingEvent);
+
+                // Update cooldown timestamp
+                lastAlertTime.put(userId, Instant.now());
 
                 alertsProducedCounter.increment();
                 if ("CRITICAL".equals(alertLevel)) {
