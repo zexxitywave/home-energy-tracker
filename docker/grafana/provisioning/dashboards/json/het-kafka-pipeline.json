@@ -509,7 +509,7 @@
         "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2, "fillOpacity": 5, "lineInterpolation": "smooth" }, "unit": "short" }
       },
       "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] } }
-    }
+    },
 
     {
       "id": 15,
