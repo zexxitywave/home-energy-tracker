@@ -41,8 +41,8 @@ logs/
 *.class
 
 ### Maven & Gradle ###
-.mvn/
 .gradle/
+# Keep .mvn/wrapper so CI can use ./mvnw without needing Maven pre-installed
 
 #Excluded dirs
 influxdb_data/
